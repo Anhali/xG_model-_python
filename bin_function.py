@@ -16,9 +16,21 @@ def coords_to_bins(df, x_col, y_col, bins=(10, 10)):
     
     # Calculate the bin number
     bin_number = bin_x * bins[1] + bin_y
+
     
     return bin_number
 
+
+data = {
+    'x': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    'y': [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+}
+df = pd.DataFrame(data)
+
+# Ajouter une colonne de bins au DataFrame
+df['bin'] = coords_to_bins(df, 'x', 'y', bins=(10, 10))
+
+print(df)
 
 
 
