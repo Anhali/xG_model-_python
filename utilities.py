@@ -20,8 +20,6 @@ def coords_to_bins(df, x_col, y_col, bins=(10, 10)):
     return bin_number
 
 
-import pandas as pd
-
 def add_previous_event_time(events):
     """
     Calculate the previous event time for each event.
@@ -41,14 +39,14 @@ def add_possession_duration(events):
     Calculate the possession duration between events.
     
     Arguments:
-    events -- DataFrame of events with 'eventSec' and 'previous_event_time' columns.
+    events -- DataFrame of events with 'matchId', 'teamId', 'matchPeriod', and 'eventSec' columns.
     
     Returns:
-    events -- DataFrame with an additional column 'possession_duration' and without 'previous_event_time' column.
+    events -- DataFrame with an additional column 'possession_duration'.
     """
     
-    # First, add the previous event time
-    events = add_previous_event_time(events)
+    # Calculate the previous event time
+    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
     
     # Calculate the possession duration between events
     events['possession_duration'] = events['eventSec'] - events['previous_event_time']
@@ -69,8 +67,10 @@ def add_team_possession(events):
     events -- DataFrame with an additional column 'team_possession' containing the cumulative possession times.
     """
     
-    # First, calculate possession duration
-    events = add_possession_duration(events)
+    # Calculate the previous event time and possession duration
+    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
+    events['possession_duration'] = events['eventSec'] - events['previous_event_time']
+    events.drop(columns=['previous_event_time'], inplace=True)
     
     # Sort values to ensure proper cumulative summation
     events = events.sort_values(by=['matchId', 'teamId', 'matchPeriod', 'eventSec'])
@@ -91,8 +91,16 @@ def add_total_time(events):
     events -- DataFrame with an additional column 'total_time' containing the total possession times.
     """
     
-    # First, calculate team possession
-    events = add_team_possession(events)
+    # Calculate the previous event time and possession duration
+    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
+    events['possession_duration'] = events['eventSec'] - events['previous_event_time']
+    events.drop(columns=['previous_event_time'], inplace=True)
+    
+    # Sort values to ensure proper cumulative summation
+    events = events.sort_values(by=['matchId', 'teamId', 'matchPeriod', 'eventSec'])
+    
+    # Calculate the cumulative possession duration for each team in each match
+    events['team_possession'] = events.groupby(['matchId', 'teamId'])['possession_duration'].cumsum()
     
     # Calculate the total time for each team in each match
     events['total_time'] = events.groupby(['matchId', 'teamId'])['possession_duration'].transform('sum')
