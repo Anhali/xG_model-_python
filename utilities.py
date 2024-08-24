@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def coords_to_bins(df, x_col, y_col, bins=(10, 10)):
+def coords_to_bins(df, x_col, y_col, bins=(12, 16)):
     # Calculate bin edges
     x_edges = np.linspace(0, 100, bins[0] + 1)
     y_edges = np.linspace(0, 100, bins[1] + 1)
@@ -17,7 +17,28 @@ def coords_to_bins(df, x_col, y_col, bins=(10, 10)):
     # Calculate the bin number
     bin_number = bin_x * bins[1] + bin_y
     
-    return bin_number
+    return  bin_number
+
+  
+   # Fonction pour ajuster eventSec pour une ligne donnée
+def adjust_eventSec(row, last_event_sec_first_half):
+    if row['matchPeriod'] == '2H':
+        return row['eventSec'] + last_event_sec_first_half
+    else:
+        return row['eventSec']
+    
+
+# Fonction pour ajuster eventSec pour chaque match
+def adjust_eventSec_for_match(df):
+    last_event_sec_first_half = df[df['matchPeriod'] == '1H']['eventSec'].max()
+    df['adjusted_eventSec'] = df.apply(adjust_eventSec, axis=1, last_event_sec_first_half=last_event_sec_first_half)
+    return df
+
+
+# Fonction principale pour ajouter la colonne adjusted_eventSec
+def add_adjusted_eventSec(data_event):
+    data_event = data_event.groupby('matchId', group_keys=False).apply(adjust_eventSec_for_match).reset_index(drop=True)
+    return data_event
 
 
 def add_previous_event_time(events):
@@ -31,7 +52,7 @@ def add_previous_event_time(events):
     events -- DataFrame with an additional column 'previous_event_time'.
     """
     
-    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
+    events['previous_event_time'] = events.groupby(['matchId',  'matchPeriod'])['eventSec'].shift(1).fillna(0)
     return events
 
 def add_possession_duration(events):
@@ -46,7 +67,7 @@ def add_possession_duration(events):
     """
     
     # Calculate the previous event time
-    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
+    events = add_previous_event_time(events)
     
     # Calculate the possession duration between events
     events['possession_duration'] = events['eventSec'] - events['previous_event_time']
@@ -66,11 +87,8 @@ def add_team_possession(events):
     Returns:
     events -- DataFrame with an additional column 'team_possession' containing the cumulative possession times.
     """
-    
-    # Calculate the previous event time and possession duration
-    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
-    events['possession_duration'] = events['eventSec'] - events['previous_event_time']
-    events.drop(columns=['previous_event_time'], inplace=True)
+    events = add_previous_event_time(events)
+    events = add_possession_duration(events)
     
     # Sort values to ensure proper cumulative summation
     events = events.sort_values(by=['matchId', 'teamId', 'matchPeriod', 'eventSec'])
@@ -79,33 +97,4 @@ def add_team_possession(events):
     events['team_possession'] = events.groupby(['matchId', 'teamId'])['possession_duration'].cumsum()
     
     return events
-
-def add_total_time(events):
-    """
-    Calculate the total possession time for each team in each match.
-    
-    Arguments:
-    events -- DataFrame of events with 'matchId', 'teamId', 'matchPeriod', 'eventSec' columns.
-    
-    Returns:
-    events -- DataFrame with an additional column 'total_time' containing the total possession times.
-    """
-    
-    # Calculate the previous event time and possession duration
-    events['previous_event_time'] = events.groupby(['matchId', 'teamId', 'matchPeriod'])['eventSec'].shift(1).fillna(0)
-    events['possession_duration'] = events['eventSec'] - events['previous_event_time']
-    events.drop(columns=['previous_event_time'], inplace=True)
-    
-    # Sort values to ensure proper cumulative summation
-    events = events.sort_values(by=['matchId', 'teamId', 'matchPeriod', 'eventSec'])
-    
-    # Calculate the cumulative possession duration for each team in each match
-    events['team_possession'] = events.groupby(['matchId', 'teamId'])['possession_duration'].cumsum()
-    
-    # Calculate the total time for each team in each match
-    events['total_time'] = events.groupby(['matchId', 'teamId'])['possession_duration'].transform('sum')
-    
-    return events
-
-
 
