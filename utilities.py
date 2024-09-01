@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-def coords_to_bins(df, x_col, y_col, bins=(12, 16)):
+def coords_to_bins(df, x_col, y_col, bins=(16, 12)):
     # Calculate bin edges
     x_edges = np.linspace(0, 100, bins[0] + 1)
     y_edges = np.linspace(0, 100, bins[1] + 1)
@@ -30,8 +30,13 @@ def adjust_eventSec(row, last_event_sec_first_half):
 
 # Fonction pour ajuster eventSec pour chaque match
 def adjust_eventSec_for_match(df):
+    # Trouver le temps de l'événement le plus tardif dans la première mi-temps
     last_event_sec_first_half = df[df['matchPeriod'] == '1H']['eventSec'].max()
-    df['adjusted_eventSec'] = df.apply(adjust_eventSec, axis=1, last_event_sec_first_half=last_event_sec_first_half)
+    
+    # Ajuster les temps d'événements directement en utilisant numpy où pandas
+    df['adjusted_eventSec'] = np.where(df['matchPeriod'] == '2H', 
+                                       df['eventSec'] + last_event_sec_first_half, 
+                                       df['eventSec'])
     return df
 
 
