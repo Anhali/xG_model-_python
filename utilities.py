@@ -1,14 +1,14 @@
 import pandas as pd
 import numpy as np
 
-def coords_to_bins(df, x_col, y_col, bins=(16, 12)):
+def coords_to_bins(events, x_col, y_col, bins=(16, 12)):
     # Calculate bin edges
     x_edges = np.linspace(0, 100, bins[0] + 1)
     y_edges = np.linspace(0, 100, bins[1] + 1)
     
     # Convert coordinates to bins using pd.cut
-    bin_x = pd.cut(df[x_col], x_edges, right=False, labels=np.arange(0, bins[0]))
-    bin_y = pd.cut(df[y_col], y_edges, right=False, labels=np.arange(0, bins[1]))
+    bin_x = pd.cut(events[x_col], x_edges, right=False, labels=np.arange(0, bins[0]))
+    bin_y = pd.cut(events[y_col], y_edges, right=False, labels=np.arange(0, bins[1]))
     
     # Handle the edge case where x or y equals 100
     bin_x = bin_x.fillna(bins[0] - 1).astype(int)
@@ -20,7 +20,7 @@ def coords_to_bins(df, x_col, y_col, bins=(16, 12)):
     return  bin_number
 
   
-   # Fonction pour ajuster eventSec pour une ligne donnée
+# Fonction pour ajuster eventSec pour une ligne donnée
 def adjust_eventSec(row, last_event_sec_first_half):
     if row['matchPeriod'] == '2H':
         return row['eventSec'] + last_event_sec_first_half
@@ -29,21 +29,21 @@ def adjust_eventSec(row, last_event_sec_first_half):
     
 
 # Fonction pour ajuster eventSec pour chaque match
-def adjust_eventSec_for_match(df):
+def adjust_eventSec_for_match(events):
     # Trouver le temps de l'événement le plus tardif dans la première mi-temps
-    last_event_sec_first_half = df[df['matchPeriod'] == '1H']['eventSec'].max()
+    last_event_sec_first_half = events[events['matchPeriod'] == '1H']['eventSec'].max()
     
     # Ajuster les temps d'événements directement en utilisant numpy où pandas
-    df['adjusted_eventSec'] = np.where(df['matchPeriod'] == '2H', 
-                                       df['eventSec'] + last_event_sec_first_half, 
-                                       df['eventSec'])
-    return df
+    events['adjusted_eventSec'] = np.where(events['matchPeriod'] == '2H', 
+                                       events['eventSec'] + last_event_sec_first_half, 
+                                       events['eventSec'])
+    return events
 
 
 # Fonction principale pour ajouter la colonne adjusted_eventSec
-def add_adjusted_eventSec(data_event):
-    data_event = data_event.groupby('matchId', group_keys=False).apply(adjust_eventSec_for_match).reset_index(drop=True)
-    return data_event
+def add_adjusted_eventSec(events):
+    events = events.groupby('matchId', group_keys=False).apply(adjust_eventSec_for_match).reset_index(drop=True)
+    return events
 
 
 def add_previous_event_time(events):
@@ -103,3 +103,41 @@ def add_team_possession(events):
     
     return events
 
+
+def calculate_team_scores(events):
+    # Initialiser la colonne team_scores à 0
+    events['team_scores'] = 0
+    
+    # Parcourir chaque match
+    for match_id in events['matchId'].unique():
+        match_mask = events['matchId'] == match_id
+        match_df = events.loc[match_mask]
+        
+        # Identifier les équipes en compétition dans ce match
+        team_ids = match_df['teamId'].unique()
+        if len(team_ids) != 2:
+            # Passer ce match s'il n'y a pas exactement deux équipes détectées
+            continue
+        
+        # Initialiser les scores pour les équipes
+        team_scores = {team_ids[0]: 0, team_ids[1]: 0}
+        
+        # Parcourir chaque événement du match
+        for idx in match_df.index:
+            row = events.loc[idx]
+            
+            # Vérifier si l'événement est un tir et s'il y a un but
+            if row['subEventName'] == 'Shot' and any(tag['id'] == 101 for tag in row['tags']):
+                # Identifier l'équipe adverse
+                opponent_team = team_ids[1] if row['teamId'] == team_ids[0] else team_ids[0]
+                
+                # Mettre à jour le score pour l'équipe qui a marqué
+                team_scores[row['teamId']] = 1
+                
+                # Mettre à jour le score pour l'équipe adverse
+                team_scores[opponent_team] = -1
+            
+            # Mettre à jour la colonne 'team_scores' avec la valeur de l'équipe en cours
+            events.at[idx, 'team_scores'] = team_scores[row['teamId']]
+    
+    return events
