@@ -122,8 +122,8 @@ def calculate_shot_angle(bin_number, goal_width=7.32, bins=(16, 12), field_lengt
     # Convert from radians to degrees
     return np.degrees(angle)
 
-
 def generate_bins_properties(events, bin_number, bins=(16, 12)):
+    
     """
     Generate various bin properties (bin center, distance to goal, and shot angle) for events.
 
@@ -139,14 +139,14 @@ def generate_bins_properties(events, bin_number, bins=(16, 12)):
     events['bin_center_x'], events['bin_center_y'] = zip(*events[bin_number].apply(calculate_bin_center, bins=bins))
     
     # Calculate distance to goal
-    events['distance_to_goal'] = events[bin_number].apply(distance_to_goal, bins=bins)
-    
+    events['distance_to_goal'] = distance_to_goal(events[bin_number])
     # Calculate angle to goal
-    events['angle_to_goal'] = events[bin_number].apply(calculate_shot_angle, bins=bins)
+    events['angle_to_goal'] = calculate_shot_angle(events['bin_center_x'], events['bin_center_y'])
     
     return events
 
-# Function to adjust eventSec for a given row based on the last event time in the first half
+  
+# Fonction pour ajuster eventSec pour une ligne donnée
 def adjust_eventSec(row, last_event_sec_first_half):
     if row['matchPeriod'] == '2H':
         return row['eventSec'] + last_event_sec_first_half
@@ -281,5 +281,3 @@ def calculate_team_scores(events):
     events.loc[events['is_goal'], 'team_scores'] -= 1
 
     return events
-    
-   
