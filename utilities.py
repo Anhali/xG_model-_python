@@ -14,16 +14,12 @@ def calculate_bin_indices(x, y, bins=(16, 12), field_length=105, field_width=68)
 
 
 
-
 def calculate_bin_number(events, x_col, y_col, bins=(16, 12), field_length=105, field_width=68):
     # Appeler calculate_bin_indices avec les nouvelles dimensions du terrain
     bin_x, bin_y = calculate_bin_indices(events[x_col], events[y_col], bins, field_length, field_width)
     # Calculate the bin number
     bin_number = bin_x * bins[1] + bin_y
     return bin_number
-
-
-
 
 
 def calculate_bin_center(x_col, y_col, bins=(16, 12), field_length=105, field_width=68):
@@ -37,34 +33,54 @@ def calculate_bin_center(x_col, y_col, bins=(16, 12), field_length=105, field_wi
     return bin_center_x, bin_center_y
 
 
+def distance_to_goal(x, y, bins=(16, 12), goal_x=105, goal_y=34, field_length=105, field_width=68):
+    """
+    Calculer la distance entre les coordonnées (x, y) et le but en utilisant les centres des bins.
 
+    Paramètres:
+    x, y: Coordonnées d'un événement
+    bins: Taille des bins (par défaut 16x12)
+    goal_x (float): Coordonnée x du but (par défaut 105 pour la position du but)
+    goal_y (float): Coordonnée y du but (par défaut 34 pour la mi-largeur du terrain)
+    field_length (float): Longueur du terrain (par défaut 105 mètres)
+    field_width (float): Largeur du terrain (par défaut 68 mètres)
 
-def calculate_distance_to_goal(x_col, y_col, bins=(16, 12), field_length=105, field_width=68, goal_x=105, goal_y=34):
-    # Calcul des centres des bins avec les dimensions réelles
-    bin_center_x, bin_center_y = calculate_bin_center(x_col, y_col, bins, field_length, field_width)
+    Retourne:
+    float: Distance entre le centre du bin et le but
+    """
+    # Calculer les coordonnées du centre du bin
+    bin_center_x, bin_center_y = calculate_bin_center(x, y, bins, field_length, field_width)
     
-    # Calculer la distance du centre du bin au but (goal_x, goal_y)
-    distance_to_goal = np.sqrt((goal_x - bin_center_x)**2 + (goal_y - bin_center_y)**2)
+    # Calculer la distance euclidienne entre le centre du bin et le but
+    distance = np.sqrt((goal_x - bin_center_x)**2 + (goal_y - bin_center_y)**2)
     
-    return distance_to_goal
+    return distance
 
 
 
 
-def calculate_angle_to_goal(x, y, goal_x=105, goal_y=34):
-    # Calculer la différence en x et y entre le bin et le but
-    x_dist = goal_x - x
-    y_dist = goal_y - y
+
+def calculate_shot_angle(x, y, goal_width=7.32):
+    """
+    Calculate the shot angle from the coordinates x and y using the specified formula.
+
+    Parameters:
+    x, y: Coordinates of the shot (arrays or Series)
+    goal_width (float): Width of the goal, default 7.32 meters
+
+    Returns:
+    array: Shot angle in degrees
+    """
+    # Calculate the angle using the specified formula
+    angle = np.arctan((goal_width * x) / (x**2 + y**2 - (goal_width / 2)**2))
     
-    # Calculer l'angle à l'aide de arctan2 pour obtenir l'angle en radians
-    angle = np.arctan2(y_dist, x_dist)
-    
-    # Ajuster l'angle si négatif (on veut un angle positif)
+    # Adjust for negative angles
     angle = np.where(angle < 0, np.pi + angle, angle)
-    
-    # Convertir l'angle en degrés
-    return np.degrees(angle)
 
+    # Convert from radians to degrees
+    
+    
+    return np.degrees(angle)
 
 
 def generate_bins_properties(events, x_col, y_col, bins=(16, 12)):
@@ -73,12 +89,11 @@ def generate_bins_properties(events, x_col, y_col, bins=(16, 12)):
     # Calculate bin center
     events['bin_center_x'], events['bin_center_y'] = calculate_bin_center(events[x_col], events[y_col], bins)
     # Calculate distance to goal
-    events['distance_to_goal'] = calculate_distance_to_goal(events[x_col], events[y_col])
+    events['distance_to_goal'] = distance_to_goal(events[x_col], events[y_col])
     # Calculate angle to goal
-    events['angle_to_goal'] = calculate_angle_to_goal(events['bin_center_x'], events['bin_center_y'])
+    events['angle_to_goal'] = calculate_shot_angle(events['bin_center_x'], events['bin_center_y'])
     
     return events
-
 
   
 # Fonction pour ajuster eventSec pour une ligne donnée
@@ -143,6 +158,7 @@ def add_possession_duration(events):
     
     return events
 
+
 def add_team_possession(events):
     """
     Calculate the cumulative possession time for each team in each match.
@@ -172,6 +188,7 @@ def update_team_scores(row, team_scores, team_ids):
         team_scores[opponent_team] -= 1
     return team_scores[row['teamId']]
 
+
 def calculate_team_scores(events):
     # Initialiser la colonne team_scores à 0
     events['team_scores'] = 0
@@ -192,11 +209,9 @@ def calculate_team_scores(events):
         # Appliquer la mise à jour des scores
         events.loc[match_df.index, 'team_scores'] = match_df.apply(
             lambda row: update_team_scores(row, team_scores, team_ids), axis=1)
-
-    return events
-
-
-def adjust_scores_for_shots(events):
+        
     # Soustraire 1 des scores pour les événements 'Shot' où 'is_goal' est True
     events.loc[events['is_goal'], 'team_scores'] -= 1
+
     return events
+
